@@ -97,6 +97,7 @@ const parseArguments = async () => {
             'filter-harmonics': { type: 'string', short: 'H', multiple: true },
             'filter-box': { type: 'string', short: 'B', multiple: true },
             'filter-sphere': { type: 'string', short: 'S', multiple: true },
+            'filter-cylinder': { type: 'string', short: 'Y', multiple: true },
             'decimate': { type: 'string', short: 'F', multiple: true },
             params: { type: 'string', short: 'p', multiple: true },
             lod: { type: 'string', short: 'l', multiple: true },
@@ -283,6 +284,24 @@ const parseArguments = async () => {
                     });
                     break;
                 }
+                case 'filter-cylinder': {
+                    const parts = t.value.split(',').map((p: string) => p.trim());
+                    if (parts.length !== 5 && parts.length !== 8) {
+                        throw new Error(`Invalid filter-cylinder value: ${t.value}. Expected x,y,z,radius,height or x,y,z,radius,height,axisX,axisY,axisZ`);
+                    }
+                    const values = parts.map(parseNumber);
+                    const axis = parts.length === 8
+                        ? new Vec3(values[5], values[6], values[7])
+                        : new Vec3(0, 1, 0);  // Default Y-up
+                    current.processActions.push({
+                        kind: 'filterCylinder',
+                        center: new Vec3(values[0], values[1], values[2]),
+                        radius: values[3],
+                        height: values[4],
+                        axis
+                    });
+                    break;
+                }
                 case 'params': {
                     const params = t.value.split(',').map((p: string) => p.trim());
                     for (const param of params) {
@@ -374,6 +393,9 @@ ACTIONS (can be repeated, in any order)
     -N, --filter-nan                        Remove Gaussians with NaN or Inf values
     -B, --filter-box       <x,y,z,X,Y,Z>    Remove Gaussians outside box (min, max corners)
     -S, --filter-sphere    <x,y,z,radius>   Remove Gaussians outside sphere (center, radius)
+    -Y, --filter-cylinder  <x,y,z,r,h[,aX,aY,aZ]>
+                                              Remove Gaussians outside cylinder (center, radius, height)
+                                              Optional axis direction (default: 0,1,0 = Y-up)
     -V, --filter-value     <name,cmp,value> Keep Gaussians where <name> <cmp> <value>
                                               cmp ∈ {lt,lte,gt,gte,eq,neq}
                                               opacity, scale_*, f_dc_* use transformed values

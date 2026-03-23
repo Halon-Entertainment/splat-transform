@@ -101,6 +101,22 @@ type FilterSphere = {
 };
 
 /**
+ * Keep only splats within a cylinder volume.
+ */
+type FilterCylinder = {
+    /** Action type identifier. */
+    kind: 'filterCylinder';
+    /** Center of the cylinder (midpoint along the axis). */
+    center: Vec3;
+    /** Radius of the cylinder. */
+    radius: number;
+    /** Total height of the cylinder along the axis. */
+    height: number;
+    /** Axis direction of the cylinder (will be normalized). */
+    axis: Vec3;
+};
+
+/**
  * Parameter for .mjs generator modules.
  */
 type Param = {
@@ -166,12 +182,13 @@ type Decimate = {
  * - `filterBands` - Remove spherical harmonic bands above a threshold
  * - `filterBox` - Keep splats within a bounding box
  * - `filterSphere` - Keep splats within a sphere
+ * - `filterCylinder` - Keep splats within a cylinder volume
  * - `lod` - Assign LOD level to all splats
  * - `summary` - Print statistical summary to logger
  * - `mortonOrder` - Reorder splats by Morton code for spatial locality
  * - `decimate` - Simplify to target count via progressive pairwise merging
  */
-type ProcessAction = Translate | Rotate | Scale | FilterNaN | FilterByValue | FilterBands | FilterBox | FilterSphere | Param | Lod | Summary | MortonOrder | Decimate;
+type ProcessAction = Translate | Rotate | Scale | FilterNaN | FilterByValue | FilterBands | FilterBox | FilterSphere | FilterCylinder | Param | Lod | Summary | MortonOrder | Decimate;
 
 const shNames = new Array(45).fill('').map((_, i) => `f_rest_${i}`);
 
@@ -405,6 +422,30 @@ const processDataTable = (dataTable: DataTable, processActions: ProcessAction[])
                 result = filter(result, predicate);
                 break;
             }
+            case 'filterCylinder': {
+                const { center, radius, height, axis } = processAction;
+                const radiusSq = radius * radius;
+                const halfHeight = height / 2;
+                // Normalize the axis direction
+                const len = Math.sqrt(axis.x * axis.x + axis.y * axis.y + axis.z * axis.z);
+                const ax = axis.x / len;
+                const ay = axis.y / len;
+                const az = axis.z / len;
+                const predicate = (row: any, rowIndex: number) => {
+                    // Vector from cylinder center to point
+                    const dx = row.x - center.x;
+                    const dy = row.y - center.y;
+                    const dz = row.z - center.z;
+                    // Project onto axis (signed distance along axis from center)
+                    const along = dx * ax + dy * ay + dz * az;
+                    if (along < -halfHeight || along > halfHeight) return false;
+                    // Perpendicular distance squared
+                    const perpSq = dx * dx + dy * dy + dz * dz - along * along;
+                    return perpSq <= radiusSq;
+                };
+                result = filter(result, predicate);
+                break;
+            }
             case 'param': {
                 // skip params
                 break;
@@ -460,6 +501,7 @@ export {
     type FilterBands,
     type FilterBox,
     type FilterSphere,
+    type FilterCylinder,
     type Param,
     type Lod,
     type Summary,

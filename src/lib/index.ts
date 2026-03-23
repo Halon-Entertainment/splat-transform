@@ -26,6 +26,7 @@ export type {
     FilterBands,
     FilterBox,
     FilterSphere,
+    FilterCylinder,
     Param as ProcessParam,
     Lod,
     Summary,
